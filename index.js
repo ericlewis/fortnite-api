@@ -1,4 +1,3 @@
-const fetch = require("node-fetch");
 const EndPoint = require("./tools/endpoint");
 const Stats = require("./tools/stats");
 const quests = require("./data/quests");
@@ -191,152 +190,162 @@ class FortniteApi {
 
   getLoggedInProfile() {
     return new Promise((resolve, reject) => {
-      request({
-        url: EndPoint.challenges(this.account_id),
-        headers: {
-          Authorization: "bearer " + this.access_token
-        },
-        method: "POST",
-        body: {},
-        json: true
-      })
-        .then(({ profileChanges }) => {
-          const {
-            items,
-            stats: {
-              attributes: {
-                season_match_boost: matchBoost,
-                level,
-                xp: exp,
-                book_level: tier,
-                book_xp: tierExp,
-                book_purchased: battlePassPurchased,
-                season_friend_match_boost: friendBoost,
-                lifetime_wins: victoryCount
-              }
-            }
-          } = profileChanges[0].profile;
-          const challenges = Object.values(items)
-            .filter(item => item.templateId.includes("ChallengeBundleSchedule"))
-            .map(({ templateId, attributes }) => ({
-              name: templateId
-                .replace(
-                  "ChallengeBundleSchedule:season5_progressivea_schedule",
-                  "Drift Challenges"
-                )
-                .replace(
-                  "ChallengeBundleSchedule:season5_paid_schedule",
-                  "Road Trip Challenges"
-                )
-                .replace(
-                  "ChallengeBundleSchedule:season5_free_schedule",
-                  "Weekly Challenges"
-                )
-                .replace(
-                  "ChallengeBundleSchedule:schedule_ltm_heist",
-                  "High Stakes Challenges"
-                ),
-              bundles: attributes.granted_bundles
-                .filter(challenge => challenge)
-                .map(id => {
-                  const {
-                    templateId,
-                    attributes: {
-                      num_granted_bundle_quests: count,
-                      num_quests_completed: completedCount,
-                      grantedquestinstanceids
-                    }
-                  } = items[id];
-
-                  let name = templateId
-                    .replace(
-                      "ChallengeBundle:questbundle_s5_progressivea",
-                      "Drift"
-                    )
-                    .replace(
-                      "ChallengeBundle:questbundle_s5_cumulative",
-                      "Road Trip"
-                    )
-                    .replace(
-                      "ChallengeBundle:questbundle_ltm_heist",
-                      "High Stakes"
-                    );
-
-                  // This is bc weeks go to 10
-                  const week = parseInt(
-                    templateId.replace(
-                      "ChallengeBundle:questbundle_s5_week_",
-                      ""
-                    )
-                  );
-
-                  let reward = 5000;
-
-                  // Non-weekly challenges don't have only numbers in their name
-                  if (!isNaN(week)) {
-                    name = `Week ${week}`;
-                    if (week > 5) {
-                      reward = week * 1000;
-                    }
+      this.lookupById(this.account_id)
+        .then(data =>
+          request({
+            url: EndPoint.challenges(this.account_id),
+            headers: {
+              Authorization: "bearer " + this.access_token
+            },
+            method: "POST",
+            body: {},
+            json: true
+          })
+            .then(({ profileChanges }) => {
+              const { displayName } = data[0];
+              const {
+                items,
+                stats: {
+                  attributes: {
+                    season_match_boost: matchBoost,
+                    level,
+                    xp: exp,
+                    book_level: tier,
+                    book_xp: tierExp,
+                    book_purchased: battlePassPurchased,
+                    season_friend_match_boost: friendBoost,
+                    lifetime_wins: victoryCount
                   }
-
-                  const bundle = {
-                    name,
-                    week,
-                    count,
-                    completedCount,
-                    complete: count === completedCount,
-                    reward,
-                    challenges: grantedquestinstanceids.map(id => {
-                      // FIXME: staged challenges should be collapse to a single challenge showing the latest completed
-
+                }
+              } = profileChanges[0].profile;
+              const challenges = Object.values(items)
+                .filter(item =>
+                  item.templateId.includes("ChallengeBundleSchedule")
+                )
+                .map(({ templateId, attributes }) => ({
+                  name: templateId
+                    .replace(
+                      "ChallengeBundleSchedule:season5_progressivea_schedule",
+                      "Drift Challenges"
+                    )
+                    .replace(
+                      "ChallengeBundleSchedule:season5_paid_schedule",
+                      "Road Trip Challenges"
+                    )
+                    .replace(
+                      "ChallengeBundleSchedule:season5_free_schedule",
+                      "Weekly Challenges"
+                    )
+                    .replace(
+                      "ChallengeBundleSchedule:schedule_ltm_heist",
+                      "High Stakes Challenges"
+                    ),
+                  bundles: attributes.granted_bundles
+                    .filter(challenge => challenge)
+                    .map(id => {
                       const {
                         templateId,
-                        attributes,
-                        attributes: { quest_state }
+                        attributes: {
+                          num_granted_bundle_quests: count,
+                          num_quests_completed: completedCount,
+                          grantedquestinstanceids
+                        }
                       } = items[id];
-                      const complete = quest_state === "Claimed";
-                      const quest = quests[templateId] || {};
-                      const backendNames = quest.backendNames;
 
-                      const completedCount = backendNames
-                        .map(name => attributes[name])
-                        .filter(i => i)
-                        .reduce((a, b) => a + b, 0);
+                      let name = templateId
+                        .replace(
+                          "ChallengeBundle:questbundle_s5_progressivea",
+                          "Drift"
+                        )
+                        .replace(
+                          "ChallengeBundle:questbundle_s5_cumulative",
+                          "Road Trip"
+                        )
+                        .replace(
+                          "ChallengeBundle:questbundle_ltm_heist",
+                          "High Stakes"
+                        );
 
-                      delete quest.backendNames;
+                      // This is bc weeks go to 10
+                      const week = parseInt(
+                        templateId.replace(
+                          "ChallengeBundle:questbundle_s5_week_",
+                          ""
+                        )
+                      );
 
-                      return {
-                        complete,
+                      let reward = 5000;
+
+                      // Non-weekly challenges don't have only numbers in their name
+                      if (!isNaN(week)) {
+                        name = `Week ${week}`;
+                        if (week > 5) {
+                          reward = week * 1000;
+                        }
+                      }
+
+                      const bundle = {
+                        name,
+                        week,
+                        count,
                         completedCount,
-                        ...quest
+                        complete: count === completedCount,
+                        reward,
+                        challenges: grantedquestinstanceids.map(id => {
+                          // FIXME: staged challenges should be collapse to a single challenge showing the latest completed
+
+                          const {
+                            templateId,
+                            attributes,
+                            attributes: { quest_state }
+                          } = items[id];
+                          const complete = quest_state === "Claimed";
+                          const quest = quests[templateId] || {};
+                          const backendNames = quest.backendNames;
+
+                          const completedCount = backendNames
+                            .map(name => attributes[name])
+                            .filter(i => i)
+                            .reduce((a, b) => a + b, 0);
+
+                          delete quest.backendNames;
+
+                          return {
+                            complete,
+                            completedCount,
+                            ...quest
+                          };
+                        })
                       };
+
+                      // this isn't a week
+                      // delete the week & rewards key
+                      if (isNaN(week)) {
+                        delete bundle.week;
+                        delete bundle.reward;
+                      }
+
+                      return bundle;
                     })
-                  };
+                }));
 
-                  // this isn't a week
-                  // delete the week & rewards key
-                  if (isNaN(week)) {
-                    delete bundle.week;
-                    delete bundle.reward;
-                  }
-
-                  return bundle;
-                })
-            }));
-
-          resolve({
-            battlePassPurchased,
-            friendBoost,
-            victoryCount,
-            matchBoost,
-            level,
-            tier,
-            tierExp,
-            exp,
-            challenges
-          });
-        })
+              resolve({
+                displayName,
+                battlePassPurchased,
+                friendBoost,
+                victoryCount,
+                matchBoost,
+                level,
+                tier,
+                tierExp,
+                exp,
+                challenges
+              });
+            })
+            .catch(err => {
+              reject(err);
+            })
+        )
         .catch(err => {
           reject(err);
         });
